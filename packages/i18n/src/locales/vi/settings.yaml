@@ -79,7 +79,7 @@ pages:
     delete: Xóa
     delete_card: Xóa thẻ
     delete_confirmation: Bạn có chắc muốn xóa thẻ này?
-    description: Dùng preset thẻ nhân vật AIRI
+    description: Dùng các thẻ nhân vật được cài sẵn
     description_label: Mô tả
     drop_here: Kéo vào đây để tải lên
     create_card: Tạo thẻ mới
@@ -95,17 +95,17 @@ pages:
       create: Tạo
       defaults:
         name: Tên
-        personality: Bạn là một con người bình thường, tò mò về mọi thứ.
-        scenario: Bạn vừa tỉnh dậy và quên hết quá khứ.
+        personality: Bạn là một con người bình thường và tò mò về mọi thứ.
+        scenario: Bạn vừa tỉnh dậy và quên hết quá khứ của bạn.
         systemprompt: Bạn sẽ nhận tin nhắn và trả lời như một con người thực sự.
         posthistoryinstructions: Nhớ bắt chước như một con người.
       fields_info:
         subtitle: >-
-          Bạn có thể thêm chi tiết về nhân vật, giải thích lịch sử, bối cảnh và
+          Bạn có thể thêm chi tiết về nhân vật, giải thích về lịch sử, bối cảnh và
           cách nhân vật nên trả lời.
-        name: Tên chính thức của nhân vật.
-        nickname: Có thể đặt biệt danh để ưu tiên dùng.
-        description: Mô tả nhân vật này.
+        name: Tên chính nhân vật.
+        nickname: Có thể đặt biệt danh.
+        description: Mô tả nhân vật.
         notes: Thêm ghi chú cá nhân nếu muốn.
         personality: >-
           Miêu tả tính cách nhân vật. Nhút nhát? Tò mò? Hoặc khác?
@@ -139,13 +139,13 @@ pages:
       model: Giọng nói / Mô hình
       voice: Giọng nói / Giọng
     systemprompt: Lời nhắc hệ thống
-    title: Thẻ AIRI
+    title: Lời nhắc
     try_different_search: Hãy thử từ khóa khác
     upload: Tải lên
     upload_desc: Bấm hoặc kéo thả tệp để tải lên
   memory:
     description: Nơi lưu trữ và tổ chức ký ức
-    title: Bộ nhớ
+    title: Trí nhớ
   models:
     description: Live2D, VRM, v.v.
     title: Mô hình
@@ -166,7 +166,7 @@ pages:
           provider-model-selection:
             collapse: Thu gọn
             custom_model_placeholder: Nhập tên mô hình tùy chỉnh...
-            description: Chọn nhà cung cấp LLM phù hợp cho ý thức
+            description: Chọn nhà cung cấp LLM phù hợp
             error: Lỗi tải mô hình
             expand: Mở rộng
             loading: Đang tải mô hình...
@@ -184,7 +184,7 @@ pages:
             show_more: Hiện thêm
             subtitle: Chọn mô hình từ nhà cung cấp
             title: Mô hình
-      title: Ý thức
+      title: Bộ não
     description: Tư duy, thị giác, tổng hợp giọng nói, chơi game, v.v.
     gaming-factorio:
       description: Chơi Factorio!
@@ -194,7 +194,7 @@ pages:
       title: Minecraft
     hearing:
       description: Cấu hình nhận diện giọng nói
-      title: Nghe
+      title: Thính giác
     memory-long-term:
       description: Cài đặt và quản lý trí nhớ dài hạn
       title: Trí nhớ dài hạn
@@ -238,7 +238,7 @@ pages:
               description: Bật để nhập SSML thô thay vì văn bản
               label: Dùng SSML tùy chỉnh
       title: Giọng nói
-    title: Module
+    title: Mô-đun
     vision:
       description: Thị giác
       title: Thị giác
