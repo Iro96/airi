@@ -103,7 +103,7 @@ pages:
         subtitle: >-
           Bạn có thể thêm chi tiết về nhân vật, giải thích về lịch sử, bối cảnh và
           cách nhân vật nên trả lời.
-        name: Tên chính nhân vật.
+        name: Tên nhân vật.
         nickname: Có thể đặt biệt danh.
         description: Mô tả nhân vật.
         notes: Thêm ghi chú cá nhân nếu muốn.
