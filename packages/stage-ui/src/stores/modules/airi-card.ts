@@ -1,10 +1,11 @@
 import type { Card, ccv3 } from '@proj-airi/ccc'
 
 import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
-import { watchDebounced } from '@vueuse/core'
+import { AiriCardsSyncEngine, type SyncOp, type SyncState } from '@proj-airi/stage-shared'
+import { watchDebounced, useLocalStorage, useWindowFocus } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import SystemPromptV2 from '../../constants/prompts/system-v2'
@@ -15,6 +16,8 @@ import { useSettingsStageModel } from '../settings/stage-model'
 import { useArtistryStore } from './artistry'
 import { useConsciousnessStore } from './consciousness'
 import { useSpeechStore } from './speech'
+import { client } from '../../composables/api'
+import { useAuthStore } from '../auth'
 
 export interface AiriExtension {
   modules: {
@@ -74,6 +77,7 @@ export interface AiriExtension {
 }
 
 export interface AiriCard extends Card {
+  updatedAt?: string
   extensions: {
     airi: AiriExtension
   } & Card['extensions']
@@ -103,15 +107,164 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     activeSpeechModel,
   } = storeToRefs(speechStore)
 
+  // Cloud Sync setup
+  const authStore = useAuthStore()
+  const syncEngine = new AiriCardsSyncEngine(client)
+  const syncState = useLocalStorage<SyncState>('airi-cards-sync-state', {
+    status: 'unauthenticated',
+    pendingOps: {},
+    lastSyncedAt: null,
+    lastError: null,
+  })
+
+  let isSyncing = false
+  async function flushQueue() {
+    if (isSyncing)
+      return
+    if (!authStore.isAuthenticated) {
+      syncState.value.status = 'unauthenticated'
+      return
+    }
+
+    const opsToSync = { ...syncState.value.pendingOps }
+    if (Object.keys(opsToSync).length === 0) {
+      syncState.value.status = 'synced'
+      return
+    }
+
+    isSyncing = true
+    syncState.value.status = 'syncing'
+
+    try {
+      const successIds = await syncEngine.flushOps(opsToSync, id => cards.value.get(id))
+      
+      // Clear successfully synced operations
+      for (const id of successIds) {
+        delete syncState.value.pendingOps[id]
+      }
+
+      syncState.value.lastSyncedAt = Date.now()
+      syncState.value.lastError = null
+
+      if (Object.keys(syncState.value.pendingOps).length === 0) {
+        syncState.value.status = 'synced'
+      }
+      else {
+        syncState.value.status = 'error'
+      }
+    }
+    catch (err: any) {
+      syncState.value.status = 'error'
+      syncState.value.lastError = err.message || String(err)
+    }
+    finally {
+      isSyncing = false
+    }
+  }
+
+  function enqueueUpsert(clientId: string, updatedAt: string) {
+    syncState.value.pendingOps[clientId] = {
+      kind: 'upsert',
+      clientId,
+      updatedAt,
+    }
+    void flushQueue() // Trigger immediate sync attempt
+  }
+
+  function enqueueDelete(clientId: string, deletedAt: string) {
+    syncState.value.pendingOps[clientId] = {
+      kind: 'delete',
+      clientId,
+      updatedAt: deletedAt,
+    }
+    void flushQueue()
+  }
+
+  async function pullAndReconcile() {
+    if (!authStore.isAuthenticated)
+      return
+
+    syncState.value.status = 'syncing'
+    try {
+      const res = await syncEngine.pullAndReconcile(
+        cards.value,
+        (updatedMap, serverActiveId) => {
+          cards.value = updatedMap
+          if (serverActiveId && cards.value.has(serverActiveId) && activeCardId.value !== serverActiveId) {
+            activeCardId.value = serverActiveId
+          }
+        },
+      )
+
+      if (res.opsToUpload?.length) {
+        for (const op of res.opsToUpload) {
+          syncState.value.pendingOps[op.clientId] = op
+        }
+        await flushQueue()
+      }
+
+      syncState.value.status = 'synced'
+      syncState.value.lastSyncedAt = Date.now()
+      syncState.value.lastError = null
+    }
+    catch (err: any) {
+      syncState.value.status = 'error'
+      syncState.value.lastError = err.message || String(err)
+    }
+  }
+
+  // Watchers to trigger sync
+  watchDebounced(() => syncState.value.pendingOps, () => {
+    void flushQueue()
+  }, { debounce: 2000, deep: true })
+
+  // Active card sync
+  watch(activeCardId, async (newVal) => {
+    if (authStore.isAuthenticated && newVal) {
+      try {
+        await syncEngine.pushActiveCardId(newVal)
+      }
+      catch (e) {
+        console.error('Failed to sync active character ID:', e)
+      }
+    }
+  })
+
+  // Auth watch
+  watch(() => authStore.isAuthenticated, (isAuthed) => {
+    if (isAuthed) {
+      void pullAndReconcile()
+    }
+    else {
+      syncState.value.status = 'unauthenticated'
+      syncState.value.pendingOps = {}
+    }
+  }, { immediate: true })
+
+  // Window Focus watch
+  const windowFocused = useWindowFocus()
+  watch(windowFocused, (focused) => {
+    if (focused && authStore.isAuthenticated) {
+      void pullAndReconcile()
+    }
+  })
+
   const addCard = (card: AiriCard | Card | ccv3.CharacterCardV3) => {
     const newCardId = nanoid()
-    cards.value.set(newCardId, newAiriCard(card))
+    const updatedAt = new Date().toISOString()
+    const cardPayload = {
+      ...newAiriCard(card),
+      updatedAt,
+    }
+    cards.value.set(newCardId, cardPayload)
+    enqueueUpsert(newCardId, updatedAt)
     return newCardId
   }
 
   const removeCard = (id: string) => {
     cards.value.delete(id)
     capturePosthogEvent('character_deleted', { character_id: id })
+    enqueueDelete(id, new Date().toISOString())
   }
 
   const updateCard = (id: string, updates: AiriCard | Card | ccv3.CharacterCardV3) => {
@@ -119,18 +272,22 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     if (!existingCard)
       return false
 
+    const updatedAt = new Date().toISOString()
     const updatedCard = {
       ...existingCard,
       ...updates,
+      updatedAt,
     }
 
     cards.value.set(id, newAiriCard(updatedCard))
+    enqueueUpsert(id, updatedAt)
     return true
   }
 
   const getCard = (id: string) => {
     return cards.value.get(id)
   }
+
 
   function updateActiveCardDisplayModel(displayModelId: string | undefined) {
     const cardId = activeCardId.value
@@ -339,6 +496,12 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   function resetState() {
     activeCardId.reset()
     cards.reset()
+    syncState.value = {
+      status: 'unauthenticated',
+      pendingOps: {},
+      lastSyncedAt: null,
+      lastError: null,
+    }
   }
 
   return {
@@ -352,6 +515,8 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     getCard,
     resetState,
     initialize,
+    syncState,
+    pullAndReconcile,
 
     currentModels: computed(() => {
       return {

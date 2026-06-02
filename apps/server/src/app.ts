@@ -12,6 +12,7 @@ import type { AdminUsersService } from './services/domain/admin/users'
 import type { BillingService } from './services/domain/billing/billing-service'
 import type { FluxMeter } from './services/domain/billing/flux-meter'
 import type { CharacterService } from './services/domain/characters'
+import type { UserCharactersService } from './services/domain/user-characters'
 import type { ChatService } from './services/domain/chats'
 import type { FluxService } from './services/domain/flux'
 import type { FluxTransactionService } from './services/domain/flux-transaction'
@@ -56,6 +57,7 @@ import { createAdminUsersRoutes } from './routes/admin/users'
 import { createAudioSpeechWsHandlers } from './routes/audio-speech-ws'
 import { createAuthRoutes } from './routes/auth'
 import { createCharacterRoutes } from './routes/characters'
+import { createUserCharactersRoutes } from './routes/user-characters'
 import { createChatWsHandlers } from './routes/chat-ws'
 import { createChatRoutes } from './routes/chats'
 import { createFluxRoutes } from './routes/flux'
@@ -71,6 +73,7 @@ import { createAdminUsersService } from './services/domain/admin/users'
 import { createBillingService } from './services/domain/billing/billing-service'
 import { createFluxMeter } from './services/domain/billing/flux-meter'
 import { createCharacterService } from './services/domain/characters'
+import { createUserCharactersService } from './services/domain/user-characters'
 import { createChatService } from './services/domain/chats'
 import { createFluxService } from './services/domain/flux'
 import { createFluxTransactionService } from './services/domain/flux-transaction'
@@ -88,6 +91,7 @@ interface AppDeps {
   auth: AuthInstance
   db: Database
   characterService: CharacterService
+  userCharactersService: UserCharactersService
   chatService: ChatService
   providerService: ProviderService
   fluxService: FluxService
@@ -313,6 +317,7 @@ export async function buildApp(deps: AppDeps) {
      * Character routes are handled by the character service.
      */
     .route('/api/v1/characters', createCharacterRoutes(deps.characterService))
+    .route('/api/v1/user-characters', createUserCharactersRoutes(deps.userCharactersService))
 
     /**
      * Provider routes are handled by the provider service.
@@ -514,6 +519,11 @@ export async function createApp() {
     build: ({ dependsOn }) => createCharacterService(dependsOn.db, dependsOn.otel?.engagement),
   })
 
+  const userCharactersService = injeca.provide('services:userCharacters', {
+    dependsOn: { db },
+    build: ({ dependsOn }) => createUserCharactersService(dependsOn.db),
+  })
+
   const providerService = injeca.provide('services:providers', {
     dependsOn: { db },
     build: ({ dependsOn }) => createProviderService(dependsOn.db),
@@ -553,7 +563,7 @@ export async function createApp() {
   // Domain knowledge stays inside each service instead of being copied into
   // a parallel handler file. See `apps/server/docs/ai-context/account-deletion.md`.
   const userDeletionService = injeca.provide('services:userDeletion', {
-    dependsOn: { stripeService, fluxService, providerService, characterService, chatService },
+    dependsOn: { stripeService, fluxService, providerService, characterService, chatService, userCharactersService },
     build: ({ dependsOn }) => {
       const service = createUserDeletionService()
       // priority: 10 = external side-effects (Stripe API cancel — unrollable),
@@ -563,6 +573,7 @@ export async function createApp() {
       service.register({ name: 'flux', priority: 20, softDelete: ({ userId }) => dependsOn.fluxService.deleteAllForUser(userId) })
       service.register({ name: 'providers', priority: 30, softDelete: ({ userId }) => dependsOn.providerService.deleteAllForUser(userId) })
       service.register({ name: 'characters', priority: 30, softDelete: ({ userId }) => dependsOn.characterService.deleteAllForUser(userId) })
+      service.register({ name: 'user-characters', priority: 30, softDelete: ({ userId }) => dependsOn.userCharactersService.deleteAllForUser(userId) })
       service.register({ name: 'chats', priority: 30, softDelete: ({ userId }) => dependsOn.chatService.deleteAllForUser(userId) })
       return service
     },
@@ -673,6 +684,7 @@ export async function createApp() {
     db,
     auth,
     characterService,
+    userCharactersService,
     chatService,
     providerService,
     fluxService,
@@ -714,6 +726,7 @@ export async function createApp() {
     auth: resolved.auth,
     db: resolved.db,
     characterService: resolved.characterService,
+    userCharactersService: resolved.userCharactersService,
     chatService: resolved.chatService,
     providerService: resolved.providerService,
     fluxService: resolved.fluxService,

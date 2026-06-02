@@ -7,3 +7,5 @@ export * from './perf/io-trace'
 export * from './perf/tracer'
 export * from './url'
 export * from './window'
+export * from './sync/airi-cards-sync-engine'
+

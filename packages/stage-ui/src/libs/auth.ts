@@ -3,6 +3,7 @@ import type { OIDCFlowParams, TokenResponse } from './auth-oidc'
 import { createAuthClient } from 'better-auth/vue'
 
 import { useAuthStore } from '../stores/auth'
+import { useAiriCardStore } from '../stores/modules/airi-card'
 import { OIDC_CLIENT_ID, OIDC_REDIRECT_URI } from './auth-config'
 import { buildAuthorizationURL, persistFlowState } from './auth-oidc'
 import { SERVER_URL } from './server'
@@ -120,6 +121,19 @@ export async function listSessions() {
 }
 
 export async function signOut() {
+  const cardStore = useAiriCardStore()
+  const pendingOpsCount = Object.keys(cardStore.syncState.pendingOps || {}).length
+  if (pendingOpsCount > 0) {
+    const confirmDiscard = confirm(
+      `You have ${pendingOpsCount} unsynced character cards. If you log out, these changes will be lost. Do you want to discard them and logout anyway?`
+    )
+    if (!confirmDiscard) {
+      return
+    }
+    // Wipe local cards since the user chose to discard unsynced data during logout
+    cardStore.resetState()
+  }
+
   const authStore = useAuthStore()
 
   // Capture the bits we need before clearOIDCState() wipes them.

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
-import { useCharacterStore } from '@proj-airi/stage-ui/stores/characters'
+import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
 import { Button } from '@proj-airi/ui'
 import { computed, onMounted } from 'vue'
 
-const characterStore = useCharacterStore()
+const cardStore = useAiriCardStore()
 const authStore = useAuthStore()
 
 const coverImage = new URL('../../../../stage-ui/src/components/menu/relu.avif', import.meta.url).href
@@ -35,28 +35,26 @@ function formatCount(value: number | string) {
 }
 
 onMounted(() => {
-  characterStore.fetchList(true)
+  void cardStore.pullAndReconcile()
 })
 
-const characters = computed(() => Array.from(characterStore.characters.values()).map((char) => {
-  const i18n = char.i18n?.[0] || { name: 'Unknown', tagline: '', description: '' }
-
+const characters = computed(() => Array.from(cardStore.cards.entries()).map(([id, card]) => {
   return {
-    id: char.id,
-    name: i18n.name,
-    tagline: i18n.tagline || i18n.description,
-    avatarUrl: char.avatarUrl || 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80',
-    characterAvatarUrl: char.characterAvatarUrl || characterAvatarImage,
-    coverUrl: char.coverUrl || coverImage,
-    coverBackgroundUrl: char.coverBackgroundUrl,
-    usedBy: char.interactionsCount,
-    interactions: char.interactionsCount,
-    likes: char.likesCount,
-    bookmarks: char.bookmarksCount,
-    forks: char.forksCount,
-    liked: char.likes?.some(l => l.userId === authStore.user?.id),
-    bookmarked: char.bookmarks?.some(b => b.userId === authStore.user?.id),
-    priceCredit: char.priceCredit,
+    id,
+    name: card.name,
+    tagline: card.description || '',
+    avatarUrl: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=200&q=80',
+    characterAvatarUrl: characterAvatarImage,
+    coverUrl: coverImage,
+    coverBackgroundUrl: undefined,
+    usedBy: 0,
+    interactions: 0,
+    likes: 0,
+    bookmarks: 0,
+    forks: 0,
+    liked: false,
+    bookmarked: false,
+    priceCredit: '0',
   }
 }))
 </script>
@@ -170,7 +168,7 @@ const characters = computed(() => Array.from(characterStore.characters.values())
                 </div>
                 <div :class="['grid grid-cols-3 items-center']">
                   <div :class="['flex items-center justify-start']">
-                    <Button variant="ghost" size="sm" aria-label="Bookmark" @click="characterStore.bookmark(character.id)">
+                    <Button variant="ghost" size="sm" aria-label="Bookmark" @click="() => {}">
                       <div
                         :class="[
                           character.bookmarked ? 'i-solar-star-bold' : 'i-solar-star-linear',
@@ -189,7 +187,7 @@ const characters = computed(() => Array.from(characterStore.characters.values())
                     </Button>
                   </div>
                   <div :class="['flex items-center justify-center']">
-                    <Button variant="ghost" size="sm" aria-label="Like" @click="characterStore.like(character.id)">
+                    <Button variant="ghost" size="sm" aria-label="Like" @click="() => {}">
                       <div
                         :class="[
                           character.liked ? 'i-solar-heart-bold' : 'i-solar-heart-outline',
